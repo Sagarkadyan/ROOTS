@@ -1,79 +1,150 @@
 import sqlite3
+import os
+import time
 
-conn = sqlite3.connect('users.db')
-cursor = conn.cursor()
+DB_PATH = os.path.join(os.path.dirname(__file__), 'users.db')
 
+def get_db():
+    conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    return conn
 
-
-cursor.execute('''
-CREATE TABLE IF NOT EXISTS users (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    name TEXT NOT NULL,
-    email TEXT UNIQUE NOT NULL,
-    password TEXT NOT NULL,
-    number TEXT
-)
-''')
-conn.commit()
-
-
-def adder(name,email,password,number):
-    try:
-        cursor.execute(
-            "INSERT INTO users (name, email, password, number) VALUES (?, ?, ?, ?)",
-            (name, email, password, number)
+def init_db():
+    with get_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS users (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            number TEXT
         )
+        ''')
+
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS otps (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            identifier TEXT NOT NULL,
+            otp TEXT NOT NULL,
+            timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+        ''')
         conn.commit()
-        return("Inserted successfully!")
-    except sqlite3.IntegrityError:
-        return("Email already exists.")
 
+# Call init_db on module import
+init_db()
 
-def check_password( name, user_password):
+def adder(name, email, password, number):
     try:
-        cursor.execute(
-            "SELECT password FROM users WHERE name = ?", (name,)
-        )
-        row = cursor.fetchone()
-        if row is None:
-            return "user not found"
-        stored_password = row[0]
-        if stored_password == user_password:
-            return "correct pass"
-        else:
-            return "wrong pass"
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO users (name, email, password, number) VALUES (?, ?, ?, ?)",
+                (name, email, password, number)
+            )
+            conn.commit()
+            return "Inserted successfully!"
+    except sqlite3.IntegrityError:
+        return "Email already exists."
+
+def check_password(name, user_password):
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT password FROM users WHERE name = ?", (name,)
+            )
+            row = cursor.fetchone()
+            if row is None:
+                return "user not found"
+            stored_password = row[0]
+            if stored_password == user_password:
+                return "correct pass"
+            else:
+                return "wrong pass"
     except Exception as e:
         return f"invalid pass: {e}"
 
-
-
 def update_pss(name, new_passwd):
     try:
-        cursor.execute(
-            "UPDATE users SET password = ? WHERE name = ?",
-            (new_passwd, name)
-        )
-        conn.commit()
-
-        if cursor.rowcount == 0:
-            return "user does not exist"
-        else:
-            return "password updated successfully"
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE users SET password = ? WHERE name = ?",
+                (new_passwd, name)
+            )
+            conn.commit()
+            if cursor.rowcount == 0:
+                return "user does not exist"
+            else:
+                return "password updated successfully"
     except Exception as e:
         return f"error: {e}"
+
 def delete_user(name):
     try:
-        cursor.execute(
-            "DELETE FROM users WHERE name = ?",
-            (name,)
-        )
-        conn.commit()
-
-        if cursor.rowcount == 0:
-            return "user does not exist"
-        else:
-            return "user deleted successfully"
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "DELETE FROM users WHERE name = ?",
+                (name,)
+            )
+            conn.commit()
+            if cursor.rowcount == 0:
+                return "user does not exist"
+            else:
+                return "user deleted successfully"
     except Exception as e:
         return f"error: {e}"
-if __name__== "__main__":
-    conn.close()
+
+def store_otp(identifier, otp):
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            # Delete old OTPs for this identifier first
+            cursor.execute("DELETE FROM otps WHERE identifier = ?", (identifier,))
+            cursor.execute(
+                "INSERT INTO otps (identifier, otp) VALUES (?, ?)",
+                (identifier, otp)
+            )
+            conn.commit()
+            return True
+    except Exception as e:
+        print(f"Error storing OTP: {e}")
+        return False
+
+def verify_otp(identifier, otp):
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT otp FROM otps WHERE identifier = ? ORDER BY timestamp DESC LIMIT 1",
+                (identifier,)
+            )
+            row = cursor.fetchone()
+            if row and row[0] == otp:
+                # Delete OTP after successful verification
+                cursor.execute("DELETE FROM otps WHERE identifier = ?", (identifier,))
+                conn.commit()
+                return True
+            return False
+    except Exception as e:
+        print(f"Error verifying OTP: {e}")
+        return False
+
+def get_user_by_identifier(identifier):
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name FROM users WHERE email = ? OR number = ?",
+                (identifier, identifier)
+            )
+            row = cursor.fetchone()
+            return row[0] if row else None
+    except Exception as e:
+        print(f"Error getting user: {e}")
+        return None
+
+if __name__ == "__main__":
+    init_db()
