@@ -3,17 +3,30 @@
 import { motion } from "framer-motion";
 import { GlassCard } from "../ui/GlassCard";
 import { SectionTitle } from "../ui/SectionTitle";
-import { mockActivity } from "../../lib/mockActivity";
+import { useState, useEffect } from "react";
 import * as Icons from "lucide-react";
 
 export const ActivityFeed = () => {
+  const [activities, setActivities] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetch("/api/activity")
+      .then(res => res.ok ? res.json() : Promise.reject("Fetch failed"))
+      .then(data => {
+        if (Array.isArray(data)) {
+          setActivities(data);
+        }
+      })
+      .catch(err => console.error("Failed to fetch activity feed", err));
+  }, []);
+
   return (
     <GlassCard className="h-full">
       <SectionTitle icon="List">Recent Activity</SectionTitle>
       
       <div className="space-y-4 mt-6">
-        {mockActivity.map((activity, idx) => {
-          const IconCmp = Icons[activity.icon as keyof typeof Icons] as React.ElementType;
+        {Array.isArray(activities) && activities.map((activity, idx) => {
+          const IconCmp = (Icons[activity.icon as keyof typeof Icons] || Icons.Circle) as React.ElementType;
           
           return (
             <motion.div
@@ -42,6 +55,9 @@ export const ActivityFeed = () => {
             </motion.div>
           );
         })}
+        {activities.length === 0 && (
+          <p className="text-center text-[var(--text-muted)] py-8 animate-pulse">Growing your activity feed...</p>
+        )}
       </div>
     </GlassCard>
   );

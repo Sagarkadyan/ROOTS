@@ -1,22 +1,20 @@
 "use client";
 
-import { ReactNode } from "react";
+import { ReactNode, ButtonHTMLAttributes } from "react";
 import { motion } from "framer-motion";
 
-interface GlowButtonProps {
+interface GlowButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   children: ReactNode;
-  onClick?: () => void;
   fullWidth?: boolean;
   variant?: "primary" | "secondary" | "ghost";
-  className?: string;
 }
 
 export const GlowButton = ({
   children,
-  onClick,
   fullWidth = false,
   variant = "primary",
   className = "",
+  ...props
 }: GlowButtonProps) => {
   let baseClasses = "rounded-xl py-3 px-6 font-medium transition-all duration-300 flex items-center justify-center gap-2";
   
@@ -36,8 +34,8 @@ export const GlowButton = ({
     <motion.button
       whileHover={{ scale: 1.05 }}
       whileTap={{ scale: 0.97 }}
-      onClick={onClick}
-      className={`${baseClasses} ${className}`}
+      className={`${baseClasses} ${className} disabled:opacity-50 disabled:cursor-not-allowed`}
+      {...(props as any)}
     >
       {children}
     </motion.button>

@@ -3,6 +3,7 @@ import random
 import string
 import os
 import sys
+from datetime import datetime, timedelta
 
 # Add the project root to the python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -17,24 +18,120 @@ app = Flask(__name__,
             static_folder=frontend_dir, 
             static_url_path='')
 
-# Keep this secret in a real application!
 app.secret_key = 'super_secret_development_key'
 
-# Dictionary mapping course IDs to external video URLs
-COURSE_LINKS = {
-    "red_teaming_101": "https://www.youtube.com/watch?v=example1", 
-    "bug_bounty_basics": "https://www.youtube.com/watch?v=example2",
-    "roblox_game_dev": "https://www.youtube.com/watch?v=example3"
+# --- Mock Data to be served via API ---
+TREE_DATA = {
+  "id": "knowledge",
+  "label": "Knowledge",
+  "children": [
+    {
+      "id": "web-dev",
+      "label": "Web Development",
+      "color": "#4ade80",
+      "estimatedHours": 120,
+      "difficulty": "Intermediate",
+      "description": "Master the art of building modern web applications from the ground up.",
+      "children": [
+        { "id": "html", "label": "HTML", "color": "#4ade80" },
+        { "id": "css", "label": "CSS", "color": "#4ade80" },
+        { "id": "javascript", "label": "JavaScript", "color": "#4ade80" }
+      ]
+    },
+    {
+      "id": "data-science",
+      "label": "Data Science",
+      "color": "#06b6d4",
+      "estimatedHours": 150,
+      "difficulty": "Advanced",
+      "description": "Unlock the power of data through analysis and machine learning.",
+      "children": [
+        { "id": "python", "label": "Python", "color": "#06b6d4" },
+        { "id": "ml", "label": "Machine Learning", "color": "#06b6d4" },
+        { "id": "stats", "label": "Statistics", "color": "#06b6d4" }
+      ]
+    },
+    {
+      "id": "ui-ux",
+      "label": "UI/UX Design",
+      "color": "#f59e0b",
+      "estimatedHours": 80,
+      "difficulty": "Beginner",
+      "description": "Design beautiful and intuitive user experiences.",
+      "children": [
+        { "id": "figma", "label": "Figma", "color": "#f59e0b" },
+        { "id": "design-systems", "label": "Design Systems", "color": "#f59e0b" },
+        { "id": "typography", "label": "Typography", "color": "#f59e0b" }
+      ]
+    },
+    {
+      "id": "devops",
+      "label": "DevOps",
+      "color": "#a78bfa",
+      "estimatedHours": 100,
+      "difficulty": "Advanced",
+      "description": "Bridge the gap between development and operations.",
+      "children": [
+        { "id": "docker", "label": "Docker", "color": "#a78bfa" },
+        { "id": "kubernetes", "label": "Kubernetes", "color": "#a78bfa" },
+        { "id": "cicd", "label": "CI/CD", "color": "#a78bfa" }
+      ]
+    },
+    {
+      "id": "cybersecurity",
+      "label": "Cybersecurity",
+      "color": "#ef4444",
+      "estimatedHours": 130,
+      "difficulty": "Advanced",
+      "description": "Protect systems and networks from digital attacks.",
+      "children": [
+        { "id": "networking", "label": "Networking", "color": "#ef4444" },
+        { "id": "cryptography", "label": "Cryptography", "color": "#ef4444" },
+        { "id": "ethical-hacking", "label": "Ethical Hacking", "color": "#ef4444" }
+      ]
+    }
+  ]
 }
+
+CHAT_RESPONSES = {
+  "initialMessages": [
+    { "role": "assistant", "text": "Hey! I'm your ROOTS guide 🌱 What do you want to learn?" }
+  ],
+  "responsePool": [
+    "Great question! Let me map that onto your learning tree 🌳",
+    "Based on your progress, I'd recommend tackling CSS Grid next!",
+    "You're growing fast! Your streak shows real dedication 🔥"
+  ]
+}
+
+ACTIVITY_FEED = [
+  { "id": 1, "title": 'Completed "JavaScript Promises"', "time": "2h ago", "xp": "+150 XP", "icon": "CheckCircle2" },
+  { "id": 2, "title": 'Started "React Hooks"', "time": "5h ago", "xp": "+50 XP", "icon": "BookOpen" },
+  { "id": 3, "title": 'Earned "7-Day Streak" badge', "time": "Yesterday", "xp": "+200 XP", "icon": "Trophy" }
+]
+
+def get_heatmap_data():
+    data = []
+    today = datetime.now()
+    for i in range(364):
+        d = today - timedelta(days=i)
+        activity = random.randint(0, 4) if i < 60 else random.randint(0, 2)
+        data.append({
+            "date": d.strftime("%Y-%m-%d"),
+            "activity": activity,
+            "sessions": random.randint(1, 3) if activity > 0 else 0,
+            "xp": activity * 35
+        })
+    return data
 
 # --- SPA Routing Helpers ---
 @app.route('/')
 def serve_index():
     if os.path.exists(os.path.join(app.static_folder, 'index.html')):
         return send_from_directory(app.static_folder, 'index.html')
-    return "UI is building... please wait and refresh in a minute."
+    return "UI is building... please wait."
 
-@app.route('/home')
+@app.route('/root')
 @app.route('/dashboard')
 @app.route('/path')
 @app.route('/courses')
@@ -45,7 +142,6 @@ def serve_pages():
     html_file = f"{path}.html"
     if os.path.exists(os.path.join(app.static_folder, html_file)):
         return send_from_directory(app.static_folder, html_file)
-    # Fallback to index if subpage not found (for SPA behavior)
     return send_from_directory(app.static_folder, 'index.html')
 
 # --- API Endpoints ---
@@ -54,19 +150,21 @@ def login():
     data = request.get_json()
     identifier = data.get('identifier')
     password = data.get('password')
-    
+    # Try by name, if fails try by identifier (email/number)
     result = check_password(identifier, password)
-    if result != "correct pass":
-        name = get_user_by_identifier(identifier)
-        if name:
-            result = check_password(name, password)
-            if result == "correct pass":
-                session['user_name'] = name
-                return jsonify({"status": "success", "message": "Login successful"})
-        return jsonify({"status": "error", "message": result})
+    if result == "correct pass":
+        session['user_name'] = identifier
+        return jsonify({"status": "success", "message": "Login successful"})
     
-    session['user_name'] = identifier
-    return jsonify({"status": "success", "message": "Login successful"})
+    # Try finding user by email/number
+    user_name = get_user_by_identifier(identifier)
+    if user_name:
+        result = check_password(user_name, password)
+        if result == "correct pass":
+            session['user_name'] = user_name
+            return jsonify({"status": "success", "message": "Login successful"})
+
+    return jsonify({"status": "error", "message": result})
 
 @app.route('/signup', methods=['POST'])
 def signup():
@@ -74,42 +172,60 @@ def signup():
     name = data.get('name')
     email = data.get('email')
     password = data.get('password')
-    number = data.get('number', '')
+    number = data.get('number')
     
     result = adder(name, email, password, number)
     if result == "Inserted successfully!":
         session['user_name'] = name
-        return jsonify({"status": "success", "message": "Signup successful"})
-    else:
-        return jsonify({"status": "error", "message": result})
+        return jsonify({"status": "success", "message": result})
+    return jsonify({"status": "error", "message": result})
 
 @app.route('/otp-request', methods=['POST'])
-def otp_request_api():
+def otp_request():
     data = request.get_json()
     identifier = data.get('identifier')
+    
+    # Check if user exists
     user_name = get_user_by_identifier(identifier)
-    if user_name:
-        otp = ''.join(random.choices(string.digits, k=6))
-        if store_otp(identifier, otp):
-            print(f"DEBUG: Sending OTP {otp} to {identifier}")
-            session['otp_identifier'] = identifier
-            return jsonify({"status": "success", "message": "OTP sent"})
-        return jsonify({"status": "error", "message": "Error storing OTP"})
-    return jsonify({"status": "error", "message": "User not found"})
+    # Also check if it's already a name
+    if not user_name:
+        # Simple check if identifier is a name in users table
+        with sqlite3.connect(os.path.join(os.path.dirname(__file__), '..', 'database', 'users.db')) as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM users WHERE name = ?", (identifier,))
+            row = cursor.fetchone()
+            if row:
+                user_name = row[0]
+
+    if not user_name:
+        return jsonify({"status": "error", "message": "User not found"})
+    
+    # Generate a dummy OTP for now
+    otp = "123456" 
+    # Store it
+    if store_otp(identifier, otp):
+        session['otp_identifier'] = identifier # Store in session for verification
+        return jsonify({"status": "success", "message": "OTP sent! (123456)"})
+    return jsonify({"status": "error", "message": "Failed to generate OTP"})
 
 @app.route('/otp-verify', methods=['POST'])
-def otp_verify_api():
+def otp_verify():
     data = request.get_json()
     otp = data.get('otp')
     identifier = session.get('otp_identifier')
+    
     if not identifier:
-        return jsonify({"status": "error", "message": "No OTP session active"})
+        return jsonify({"status": "error", "message": "OTP session expired"})
     
     if verify_otp(identifier, otp):
         user_name = get_user_by_identifier(identifier)
+        if not user_name:
+            user_name = identifier # Must be the name then
+            
         session['user_name'] = user_name
         session.pop('otp_identifier', None)
         return jsonify({"status": "success", "message": "OTP verified"})
+    
     return jsonify({"status": "error", "message": "Invalid OTP"})
 
 @app.route('/logout')
@@ -124,20 +240,36 @@ def get_session():
             "status": "success", 
             "user": {
                 "name": session['user_name'],
+                "title": "Aspiring Full-Stack Developer",
                 "level": 14, 
-                "xp": 12450,
-                "maxXP": 15000
+                "xp": 4820,
+                "maxXP": 5000,
+                "completedCourses": 12,
+                "streakTracker": 47,
+                "totalXPEarned": 12450,
+                "longestStreak": 63,
+                "sessionsThisMonth": 28,
+                "memberSince": "Growing since Jan 2025"
             }
         })
     return jsonify({"status": "error", "message": "Not logged in"}), 401
 
-@app.route('/play/<course_id>')
-def play_course(course_id):
-    if course_id in COURSE_LINKS:
-        return redirect(COURSE_LINKS[course_id])
-    return "Course not found", 404
+@app.route('/api/tree')
+def get_tree():
+    return jsonify(TREE_DATA)
 
-# Serve static assets (_next, etc.)
+@app.route('/api/chat/responses')
+def get_chat_responses():
+    return jsonify(CHAT_RESPONSES)
+
+@app.route('/api/activity')
+def get_activity():
+    return jsonify(ACTIVITY_FEED)
+
+@app.route('/api/heatmap')
+def get_heatmap():
+    return jsonify(get_heatmap_data())
+
 @app.route('/<path:filename>')
 def serve_static(filename):
     return send_from_directory(app.static_folder, filename)

@@ -4,9 +4,13 @@ import { Sidebar } from "../../components/layout/Sidebar";
 import { GlassCard } from "../../components/ui/GlassCard";
 import { SectionTitle } from "../../components/ui/SectionTitle";
 import { ChatToggleButton } from "../../components/chat/ChatToggleButton";
-import { ChatPanel } from "../../components/chat/ChatPanel";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { motion } from "framer-motion";
+
+const ChatPanel = dynamic(() => import("../../components/chat/ChatPanel").then(mod => mod.ChatPanel), {
+  ssr: false
+});
 
 export default function PathPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);

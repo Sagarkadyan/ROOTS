@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Leaf, Home, Map, BookOpen, Flame, User, LogOut } from "lucide-react";
+import { Leaf, TreePine, Map, BookOpen, Flame, User, LogOut } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 
@@ -11,15 +11,31 @@ export const Sidebar = () => {
   const [userData, setUserData] = useState<any>(null);
 
   useEffect(() => {
+    let isMounted = true;
+    
     fetch("/api/session")
-      .then(res => res.json())
+      .then(res => {
+        if (!res.ok) {
+          if (pathname !== "/") window.location.href = "/";
+          throw new Error("Not logged in");
+        }
+        return res.json();
+      })
       .then(data => {
-        if (data.status === "success") {
+        if (isMounted && data.status === "success") {
           setUserData(data.user);
+        } else {
+          if (pathname !== "/") window.location.href = "/";
         }
       })
-      .catch(err => console.error("Session fetch failed", err));
-  }, []);
+      .catch(err => {
+        if (isMounted) console.error("Session fetch failed", err);
+      });
+      
+    return () => {
+      isMounted = false;
+    };
+  }, [pathname]);
 
   const handleLogout = async () => {
     await fetch("/logout");
@@ -27,7 +43,7 @@ export const Sidebar = () => {
   };
 
   const navItems = [
-    { label: "Home", href: "/home", icon: Home },
+    { label: "Root", href: "/root", icon: TreePine },
     { label: "My Path", href: "/path", icon: Map },
     { label: "Courses", href: "/courses", icon: BookOpen },
     { label: "Streak", href: "/streak", icon: Flame },

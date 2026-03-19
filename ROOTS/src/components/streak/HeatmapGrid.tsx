@@ -1,14 +1,28 @@
 "use client";
 
 import { GlassCard } from "../ui/GlassCard";
-import { getMockHeatmapData } from "../../lib/mockHeatmap";
 import { motion, AnimatePresence } from "framer-motion";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { SectionTitle } from "../ui/SectionTitle";
 
 export const HeatmapGrid = () => {
-  const data = getMockHeatmapData();
+  const [data, setData] = useState<any[]>([]);
   const [hoveredCell, setHoveredCell] = useState<{ x: number, y: number, data: any } | null>(null);
+
+  useEffect(() => {
+    fetch("/api/heatmap")
+      .then(res => res.ok ? res.json() : Promise.reject("Fetch failed"))
+      .then(raw => {
+        if (Array.isArray(raw)) {
+          const parsed = raw.map((item: any) => ({
+            ...item,
+            date: new Date(item.date)
+          }));
+          setData(parsed);
+        }
+      })
+      .catch(err => console.error("Failed to fetch heatmap data", err));
+  }, []);
 
   const getColor = (activity: number) => {
     switch(activity) {
@@ -23,9 +37,11 @@ export const HeatmapGrid = () => {
 
   // Convert to 7 rows by 52 columns
   const weeks = [];
-  for (let i = 0; i < 52; i++) {
-    const week = data.slice(i * 7, (i + 1) * 7);
-    weeks.push(week);
+  if (data.length > 0) {
+    for (let i = 0; i < 52; i++) {
+      const week = data.slice(i * 7, (i + 1) * 7);
+      weeks.push(week);
+    }
   }
 
   const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -36,7 +52,7 @@ export const HeatmapGrid = () => {
       
       <div className="mt-6 overflow-x-auto custom-scrollbar pb-6 relative">
         <div className="min-w-[800px]">
-          {/* Month Header - Simplified just distributed evenly */}
+          {/* Month Header */}
           <div className="flex text-xs text-[var(--text-muted)] mb-2 pl-8">
             {months.map((m, i) => (
               <div key={i} className="flex-1 min-w-[60px]">{m}</div>
@@ -64,7 +80,7 @@ export const HeatmapGrid = () => {
                       key={dIdx}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      transition={{ delay: (wIdx * 7 + dIdx) * 0.002, duration: 0.2 }}
+                      transition={{ delay: (wIdx * 7 + dIdx) * 0.001, duration: 0.2 }}
                       className="w-[14px] h-[14px] rounded-[2px] cursor-crosshair transition-all hover:ring-1 hover:ring-white border border-[#ffffff0a]"
                       style={{ backgroundColor: getColor(day?.activity || 0) }}
                       onMouseEnter={(e) => {
@@ -79,6 +95,11 @@ export const HeatmapGrid = () => {
                   ))}
                 </div>
               ))}
+              {weeks.length === 0 && (
+                <div className="flex items-center justify-center w-full py-12 text-[var(--text-muted)] animate-pulse">
+                  Mapping your roots...
+                </div>
+              )}
             </div>
           </div>
         </div>

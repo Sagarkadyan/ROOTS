@@ -1,18 +1,33 @@
 import { useState, useEffect } from 'react';
-import { mockUser } from '@/lib/mockUser';
 
 export const useSession = () => {
-  const [session, setSession] = useState<{ user: typeof mockUser } | null>(null);
+  const [session, setSession] = useState<any>(null);
   const [status, setStatus] = useState<"loading" | "authenticated" | "unauthenticated">("loading");
 
   useEffect(() => {
-    // Simulate fetching from an authenticated user session dynamically
-    const timer = setTimeout(() => {
-      setSession({ user: mockUser });
-      setStatus("authenticated");
-    }, 500);
+    let isMounted = true;
+    
+    fetch("/api/session")
+      .then(res => {
+        if (!res.ok) throw new Error("Not authenticated");
+        return res.json();
+      })
+      .then(data => {
+        if (isMounted && data.status === "success") {
+          setSession({ user: data.user });
+          setStatus("authenticated");
+        }
+      })
+      .catch(err => {
+        if (isMounted) {
+          setSession(null);
+          setStatus("unauthenticated");
+        }
+      });
 
-    return () => clearTimeout(timer);
+    return () => {
+      isMounted = false;
+    };
   }, []);
 
   return { data: session, status };

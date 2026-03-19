@@ -9,6 +9,7 @@ export const FlameHero = () => {
   const [displayCount, setDisplayCount] = useState(0);
 
   useEffect(() => {
+    let frameId: number;
     let start = 0;
     const end = mockUser.streakTracker;
     const duration = 1500;
@@ -20,9 +21,12 @@ export const FlameHero = () => {
       const pct = Math.min(progress / duration, 1);
       const ease = 1 - Math.pow(1 - pct, 4);
       setDisplayCount(Math.floor(start + (end - start) * ease));
-      if (pct < 1) requestAnimationFrame(animate);
+      if (pct < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
     };
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
   }, []);
 
   return (

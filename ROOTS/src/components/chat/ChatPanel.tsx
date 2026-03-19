@@ -6,13 +6,23 @@ import { ChatMessage } from "./ChatMessage";
 import { ChatTypingIndicator } from "./ChatTypingIndicator";
 import { ChatInput } from "./ChatInput";
 import { QuickPromptChips } from "./QuickPromptChips";
-import { chatResponses } from "../../lib/chatResponses";
-import * as Icons from "lucide-react";
+import { TreePine, Minus } from "lucide-react";
 
 export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
-  const [messages, setMessages] = useState<{ role: string; text: string }[]>(chatResponses.initialMessages);
+  const [messages, setMessages] = useState<{ role: string; text: string }[]>([]);
+  const [responsePool, setResponsePool] = useState<string[]>([]);
   const [isTyping, setIsTyping] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    fetch("/api/chat/responses")
+      .then(res => res.json())
+      .then(data => {
+        setMessages(data.initialMessages);
+        setResponsePool(data.responsePool);
+      })
+      .catch(err => console.error("Failed to fetch chat responses", err));
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -23,11 +33,14 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
     setMessages(prev => [...prev, { role: "user", text }]);
     setIsTyping(true);
 
-    setTimeout(() => {
-      const response = chatResponses.responsePool[Math.floor(Math.random() * chatResponses.responsePool.length)];
+    const timer = setTimeout(() => {
+      const pool = responsePool.length > 0 ? responsePool : ["Thinking..."];
+      const response = pool[Math.floor(Math.random() * pool.length)];
       setMessages(prev => [...prev, { role: "assistant", text: response }]);
       setIsTyping(false);
     }, 1500);
+    
+    return () => clearTimeout(timer);
   };
 
   return (
@@ -40,14 +53,14 @@ export const ChatPanel = ({ onClose }: { onClose: () => void }) => {
     >
       <div className="flex justify-between items-center p-4 border-b border-[var(--border-glass)] bg-[#050a0e]/40 backdrop-blur-xl shrink-0">
         <div className="flex items-center gap-2">
-          <Icons.TreePine className="text-[var(--accent-green)] w-5 h-5" />
+          <TreePine className="text-[var(--accent-green)] w-5 h-5" />
           <span className="font-display font-bold text-lg text-gradient">ROOTS AI</span>
           <div className="w-2 h-2 rounded-full bg-[var(--accent-green)] shadow-[var(--glow-green)] relative ml-1">
             <div className="absolute inset-0 rounded-full animate-ping bg-[var(--accent-green)] opacity-75"></div>
           </div>
         </div>
         <button onClick={onClose} className="text-[var(--text-muted)] hover:text-white transition-colors">
-          <Icons.Minus className="w-5 h-5" />
+          <Minus className="w-5 h-5" />
         </button>
       </div>
 

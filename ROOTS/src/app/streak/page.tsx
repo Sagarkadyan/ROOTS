@@ -1,17 +1,35 @@
 "use client";
 
 import { Sidebar } from "../../components/layout/Sidebar";
-import { FlameHero } from "../../components/streak/FlameHero";
-import { HeatmapGrid } from "../../components/streak/HeatmapGrid";
-import { WeeklyBarChart } from "../../components/streak/WeeklyBarChart";
 import { StreakStatCard } from "../../components/streak/StreakStatCard";
 import { ChatToggleButton } from "../../components/chat/ChatToggleButton";
-import { ChatPanel } from "../../components/chat/ChatPanel";
+import dynamic from "next/dynamic";
 import { useState } from "react";
-import { mockUser } from "../../lib/mockUser";
+import { useSession } from "../../hooks/useSession";
+
+const FlameHero = dynamic(() => import("../../components/streak/FlameHero").then(mod => mod.FlameHero), {
+  loading: () => <div className="h-64 animate-pulse bg-glass-card rounded-3xl" />,
+  ssr: false
+});
+
+const HeatmapGrid = dynamic(() => import("../../components/streak/HeatmapGrid").then(mod => mod.HeatmapGrid), {
+  loading: () => <div className="h-[400px] animate-pulse bg-glass-card rounded-3xl" />,
+  ssr: false
+});
+
+const WeeklyBarChart = dynamic(() => import("../../components/streak/WeeklyBarChart").then(mod => mod.WeeklyBarChart), {
+  loading: () => <div className="h-[400px] animate-pulse bg-glass-card rounded-3xl" />,
+  ssr: false
+});
+
+const ChatPanel = dynamic(() => import("../../components/chat/ChatPanel").then(mod => mod.ChatPanel), {
+  ssr: false
+});
 
 export default function StreakPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const { data: session } = useSession();
+  const user = session?.user;
 
   return (
     <div className="flex h-screen bg-[var(--bg-deep)] overflow-hidden">
@@ -22,9 +40,9 @@ export default function StreakPage() {
           <FlameHero />
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <StreakStatCard icon="Flame" label="Longest Streak Ever" value={mockUser.longestStreak} color="#f59e0b" suffix=" days" />
-            <StreakStatCard icon="Zap" label="Total XP Earned" value={mockUser.totalXPEarned} color="var(--accent-teal)" />
-            <StreakStatCard icon="Calendar" label="Sessions This Month" value={mockUser.sessionsThisMonth} color="var(--accent-green)" />
+            <StreakStatCard icon="Flame" label="Longest Streak Ever" value={user?.longestStreak || 0} color="#f59e0b" suffix=" days" />
+            <StreakStatCard icon="Zap" label="Total XP Earned" value={user?.totalXPEarned || 0} color="var(--accent-teal)" />
+            <StreakStatCard icon="Calendar" label="Sessions This Month" value={user?.sessionsThisMonth || 0} color="var(--accent-green)" />
           </div>
           
           <div className="flex flex-col xl:flex-row gap-8">

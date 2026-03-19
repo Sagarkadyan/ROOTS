@@ -1,436 +1,362 @@
 "use client";
 
-import { useState, useCallback, useMemo, useEffect } from "react";
-import { motion, AnimatePresence } from "framer-motion";
-import { treeData, TreeNodeChild } from "../../lib/treeData";
+import { useState, useCallback, useMemo, useEffect, useRef } from "react";
+import { TreeNodeChild, TreeDataRoot, treeData as staticTreeData } from "../../lib/treeData";
 import { NodeDetailPanel } from "./NodeDetailPanel";
+import { 
+  Code2, 
+  Database, 
+  Palette, 
+  Activity, 
+  Shield, 
+  Circle,
+  LucideIcon
+} from "lucide-react";
+import { motion } from "framer-motion";
 
-interface Point {
-  x: number;
-  y: number;
-}
-
-interface ProcessedNode extends TreeNodeChild {
-  x: number;
-  y: number;
-  parentId: string | null;
-  depth: number;
-  angle: number;
-  isVisible: boolean;
-  parentPos?: Point;
-  pathD?: string;
-  growDelay: number;
-  growDuration: number;
-  arriveTime: number;
-}
-
-function hashStringToSeed(str: string) {
-  // Deterministic seed for organic jitter based on id.
-  let h = 2166136261;
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i);
-    h = Math.imul(h, 16777619);
+const getIconForCategory = (id: string): LucideIcon => {
+  switch (id) {
+    case 'web-dev': return Code2;
+    case 'data-science': return Database;
+    case 'ui-ux': return Palette;
+    case 'devops': return Activity;
+    case 'cybersecurity': return Shield;
+    default: return Circle;
   }
-  return h >>> 0;
+};
+
+interface ProcessedNode {
+  id: string;
+  label: string;
+  color: string;
+  depth: number;
+  x: number;
+  y: number;
+  parent: ProcessedNode | null;
+  data: TreeNodeChild;
+  hasChildren: boolean;
 }
 
-function mulberry32(seed: number) {
-  let t = seed >>> 0;
-  return () => {
-    t += 0x6d2b79f5;
-    let r = Math.imul(t ^ (t >>> 15), 1 | t);
-    r ^= r + Math.imul(r ^ (r >>> 7), 61 | r);
-    return ((r ^ (r >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-function clamp(n: number, min: number, max: number) {
-  return Math.max(min, Math.min(max, n));
-}
+const CANVAS_WIDTH = 2400;
+const CANVAS_HEIGHT = 1400;
 
 export default function TreeCanvas() {
-  const [expandedNodeIds, setExpandedNodeIds] = useState<Set<string>>(new Set(["web-dev"]));
+  const [treeData, setTreeData] = useState<TreeDataRoot>(staticTreeData);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [selectedNode, setSelectedNode] = useState<TreeNodeChild | null>(null);
-  const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
-  const [hasBooted, setHasBooted] = useState(false);
+  
+  const containerRef = useRef<HTMLDivElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const animRef = useRef<number>();
+  
+  const nodeTimingRef = useRef<Map<string, { start: number, end: number }>>(new Map());
+  const hoverRef = useRef<string | null>(null);
 
   useEffect(() => {
-    const t = window.setTimeout(() => setHasBooted(true), 1500);
-    return () => window.clearTimeout(t);
+    fetch("/api/tree")
+      .then(res => res.ok ? res.json() : Promise.reject())
+      .then(data => {
+        if (data && Array.isArray(data.children)) setTreeData(data);
+      })
+      .catch(() => {
+        // Fallback already set via useState(staticTreeData)
+      });
+
+    if (containerRef.current) {
+      containerRef.current.scrollLeft = (CANVAS_WIDTH - containerRef.current.clientWidth) / 2;
+    }
   }, []);
 
-  const toggleExpand = useCallback((nodeId: string, e?: React.MouseEvent) => {
-    if (e) e.stopPropagation();
-    setExpandedNodeIds(prev => {
+  const toggleExpand = useCallback((id: string) => {
+    setExpandedIds(prev => {
       const next = new Set(prev);
-      if (next.has(nodeId)) {
-        next.delete(nodeId);
-      } else {
-        next.add(nodeId);
-      }
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
       return next;
     });
   }, []);
 
-  const handleNodeClick = useCallback((node: TreeNodeChild, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setSelectedNode(node);
-    if (node.children && node.children.length > 0) {
-      toggleExpand(node.id);
-    }
-  }, [toggleExpand]);
-
-  const handleCanvasClick = useCallback(() => {
-    if (selectedNode) setSelectedNode(null);
-  }, [selectedNode]);
-
-  // Layout Algorithm: Bottom-origin organic root growth
-  const processedNodes = useMemo(() => {
+  const layoutNodes = useMemo(() => {
+    if (!treeData) return [];
+    
     const nodes: ProcessedNode[] = [];
-    const viewW = 800;
-    const viewH = 800;
-    const origin: Point = { x: viewW / 2, y: 640 }; // where roots start branching
+    
+    function traverse(node: TreeNodeChild | TreeDataRoot, depth: number, minX: number, maxX: number, parent: ProcessedNode | null) {
+      const x = (minX + maxX) / 2;
+      const y = 280 + depth * 220; 
+      
+      let pNode: ProcessedNode | null = null;
+      
+      if (depth > 0) {
+        pNode = {
+          id: node.id,
+          label: (node as any).label,
+          color: (node as any).color || "#4ade80",
+          depth,
+          x,
+          y,
+          parent,
+          data: node as TreeNodeChild,
+          hasChildren: !!(node.children && node.children.length > 0)
+        };
+        nodes.push(pNode);
+      }
+      
+      const children = node.children || [];
+      const isExpanded = depth === 0 || expandedIds.has((node as any).id);
+      
+      if (isExpanded && children.length > 0) {
+        const step = (maxX - minX) / children.length;
+        children.forEach((child, i) => {
+          traverse(child, depth + 1, minX + i * step, minX + (i + 1) * step, depth === 0 ? null : pNode!);
+        });
+      }
+    }
+    
+    traverse(treeData, 0, 100, CANVAS_WIDTH - 100, null);
+    return nodes;
+  }, [treeData, expandedIds]);
 
-    const trunkDuration = 1.4;
-    const baseChildDelay = 0.14;
-    const baseStartDelay = hasBooted ? 0 : trunkDuration;
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext("2d", { alpha: false });
+    if (!ctx || !canvas) return;
 
-    const buildPath = (from: Point, to: Point, seedStr: string) => {
-      const seed = hashStringToSeed(seedStr);
-      const rand = mulberry32(seed);
+    const now = performance.now() / 1000;
+    layoutNodes.forEach(n => {
+      if (!nodeTimingRef.current.has(n.id)) {
+        let start = now;
+        if (n.parent) {
+          const pt = nodeTimingRef.current.get(n.parent.id);
+          if (pt) start = pt.end;
+        }
+        nodeTimingRef.current.set(n.id, { start, end: start + 0.5 });
+      }
+    });
 
-      const dx = to.x - from.x;
-      const dy = to.y - from.y;
-      const len = Math.hypot(dx, dy) || 1;
-      const ux = dx / len;
-      const uy = dy / len;
-      const px = -uy;
-      const py = ux;
-
-      // Organic curvature + slight wobble.
-      const wobble = (rand() - 0.5) * clamp(len * 0.22, 6, 36);
-      const wobble2 = (rand() - 0.5) * clamp(len * 0.14, 4, 26);
-
-      const cp1 = {
-        x: from.x + ux * (len * 0.28) + px * wobble,
-        y: from.y + uy * (len * 0.28) + py * wobble,
-      };
-      const cp2 = {
-        x: from.x + ux * (len * 0.78) + px * wobble2,
-        y: from.y + uy * (len * 0.78) + py * wobble2,
-      };
-
-      return `M ${from.x} ${from.y} C ${cp1.x} ${cp1.y}, ${cp2.x} ${cp2.y}, ${to.x} ${to.y}`;
-    };
-
-    const processNode = (
-      node: TreeNodeChild,
-      parentId: string | null,
-      depth: number,
-      parentPos: Point,
-      parentAngle: number,
-      siblingIndex: number,
-      siblingCount: number,
-      parentArriveTime: number
-    ) => {
-      const rand = mulberry32(hashStringToSeed(node.id));
-
-      const spread = clamp(1.15 / (depth + 1), 0.22, 0.95);
-      const t = siblingCount <= 1 ? 0.5 : siblingIndex / (siblingCount - 1);
-      const offset = (t - 0.5) * spread;
-      const jitter = (rand() - 0.5) * 0.22;
-      const angle = parentAngle + offset + jitter;
-
-      const baseLen = 210 * Math.pow(0.78, depth);
-      const lenJitter = 0.78 + rand() * 0.44;
-      const length = clamp(baseLen * lenJitter, 70, 240);
-
-      const x = parentPos.x + Math.cos(angle) * length;
-      const y = parentPos.y + Math.sin(angle) * length;
-
-      const childPos = {
-        x: clamp(x, 60, viewW - 60),
-        y: clamp(y, 80, viewH - 80),
-      };
-
-      const growDuration = clamp(0.72 + depth * 0.1 + rand() * 0.25, 0.7, 1.4);
-      const growDelay = parentArriveTime + baseChildDelay;
-      const arriveTime = growDelay + growDuration;
-
-      const pathD = buildPath(parentPos, childPos, `${parentId ?? "root"}->${node.id}`);
-
-      nodes.push({
-        ...node,
-        x: childPos.x,
-        y: childPos.y,
-        parentId,
-        depth,
-        angle,
-        isVisible: true,
-        parentPos,
-        pathD,
-        growDelay,
-        growDuration,
-        arriveTime,
-      });
-
-      if (expandedNodeIds.has(node.id) && node.children && node.children.length > 0) {
-        node.children.forEach((child, i) =>
-          processNode(child, node.id, depth + 1, childPos, angle, i, node.children!.length, arriveTime)
-        );
+    const drawPartialBezier = (ctx: CanvasRenderingContext2D, p0: {x: number, y: number}, p1: {x: number, y: number}, p2: {x: number, y: number}, p3: {x: number, y: number}, progress: number) => {
+      ctx.moveTo(p0.x, p0.y);
+      const steps = Math.max(5, Math.floor(progress * 40));
+      for (let i = 1; i <= steps; i++) {
+        const t = (i / steps) * progress;
+        const inv = 1 - t;
+        const x = inv*inv*inv * p0.x + 3*inv*inv*t * p1.x + 3*inv*t*t * p2.x + t*t*t * p3.x;
+        const y = inv*inv*inv * p0.y + 3*inv*inv*t * p1.y + 3*inv*t*t * p2.y + t*t*t * p3.y;
+        ctx.lineTo(x, y);
       }
     };
 
-    // Primary domains: spread out like main roots (left ↔ right), mostly upward.
-    const domainCount = treeData.children.length;
-    const totalSpan = Math.PI * 0.92;
-    const startAngle = -Math.PI * (0.5 + 0.46); // ~ -2.95 rad (up-left)
-    const step = domainCount <= 1 ? 0 : totalSpan / (domainCount - 1);
+    const draw = () => {
+      const currentTime = performance.now() / 1000;
+      
+      const bgGrd = ctx.createLinearGradient(0, 0, 0, CANVAS_HEIGHT);
+      bgGrd.addColorStop(0, "#050a0e");
+      bgGrd.addColorStop(1, "#020406");
+      ctx.fillStyle = bgGrd;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    treeData.children.forEach((domain, i) => {
-      const baseAngle = startAngle + i * step;
-      // subtle asymmetry so it doesn't feel like a chart
-      const rand = mulberry32(hashStringToSeed(domain.id));
-      const angle = baseAngle + (rand() - 0.5) * 0.16;
-      processNode(domain, treeData.id, 0, origin, angle, i, domainCount, baseStartDelay);
-    });
+      const grd = ctx.createRadialGradient(CANVAS_WIDTH/2, 180, 0, CANVAS_WIDTH/2, 180, 1000);
+      grd.addColorStop(0, "rgba(74, 222, 128, 0.08)");
+      grd.addColorStop(0.5, "rgba(6, 182, 212, 0.03)");
+      grd.addColorStop(1, "transparent");
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
 
-    return nodes;
-  }, [expandedNodeIds, hasBooted]);
+      const hoveredId = hoverRef.current;
+      const pathIds = new Set<string>();
+      if (hoveredId) {
+        let current = layoutNodes.find(n => n.id === hoveredId);
+        while (current) {
+          pathIds.add(current.id);
+          current = current.parent;
+        }
+      }
 
-  const activeNodeId = hoveredNodeId ?? selectedNode?.id ?? null;
+      layoutNodes.forEach(node => {
+        const timing = nodeTimingRef.current.get(node.id);
+        if (!timing || currentTime < timing.start) return;
+
+        const progress = Math.min(1, (currentTime - timing.start) / (timing.end - timing.start));
+        const px = node.parent ? node.parent.x : CANVAS_WIDTH / 2;
+        const py = node.parent ? node.parent.y : 180;
+        
+        const isHoveredPath = pathIds.has(node.id);
+        const fadeOutOthers = hoveredId !== null && !isHoveredPath;
+
+        ctx.beginPath();
+        ctx.strokeStyle = node.color;
+        ctx.lineWidth = isHoveredPath ? 5 : Math.max(1, 3 - node.depth * 0.5);
+        
+        if (isHoveredPath) {
+          ctx.shadowBlur = 20;
+          ctx.shadowColor = node.color;
+          ctx.globalAlpha = 1;
+        } else {
+          ctx.shadowBlur = 4;
+          ctx.shadowColor = "rgba(0,0,0,0.5)";
+          ctx.globalAlpha = fadeOutOthers ? 0.1 : 0.4;
+        }
+
+        const cp1 = { x: px, y: py + (node.y - py) * 0.6 };
+        const cp2 = { x: node.x, y: py + (node.y - py) * 0.4 };
+        const p0 = { x: px, y: py };
+        const p3 = { x: node.x, y: node.y };
+
+        if (progress < 1) {
+          drawPartialBezier(ctx, p0, cp1, cp2, p3, progress);
+        } else {
+          ctx.moveTo(p0.x, p0.y);
+          ctx.bezierCurveTo(cp1.x, cp1.y, cp2.x, cp2.y, p3.x, p3.y);
+        }
+        
+        ctx.stroke();
+      });
+
+      ctx.globalAlpha = 1;
+      ctx.shadowBlur = 0;
+
+      animRef.current = requestAnimationFrame(draw);
+    };
+
+    animRef.current = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(animRef.current!);
+  }, [layoutNodes]);
 
   return (
-    <div className="w-full h-full relative overflow-hidden bg-[#050a0e]" onClick={handleCanvasClick}>
-      {/* Background decoration */}
-      <div className="absolute inset-0 pointer-events-none opacity-20">
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[800px] h-[800px] bg-radial-gradient from-[var(--accent-teal)] to-transparent blur-[120px]" />
-      </div>
+    <div 
+      ref={containerRef}
+      className="w-full h-full relative overflow-auto custom-scrollbar bg-[#050a0e]" 
+      onClick={() => setSelectedNode(null)}
+    >
+      <style>{`
+        @keyframes growNode {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(0.6); }
+          100% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+        }
+        .node-enter {
+          animation: growNode 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275) forwards;
+        }
+      `}</style>
 
-      <svg 
-        viewBox="0 0 800 800"
-        className="w-full h-full object-contain cursor-grab active:cursor-grabbing select-none"
-        preserveAspectRatio="xMidYMid meet"
-      >
-        <defs>
-          <filter id="glow">
-            <feGaussianBlur stdDeviation="3" result="coloredBlur"/>
-            <feMerge>
-              <feMergeNode in="coloredBlur"/>
-              <feMergeNode in="SourceGraphic"/>
-            </feMerge>
-          </filter>
-          <linearGradient id="trunk-grad" x1="0" y1="1" x2="0" y2="0">
-            <stop offset="0%" stopColor="#1b120d" />
-            <stop offset="45%" stopColor="#2b221b" />
-            <stop offset="100%" stopColor="var(--accent-teal)" />
-          </linearGradient>
-        </defs>
+      <div className="relative mx-auto" style={{ width: CANVAS_WIDTH, height: CANVAS_HEIGHT }}>
+        <canvas
+          ref={canvasRef}
+          width={CANVAS_WIDTH}
+          height={CANVAS_HEIGHT}
+          className="absolute inset-0 pointer-events-none"
+        />
 
-        {/* Phase 1: Trunk emerges first (bottom → up) */}
-        <motion.g>
-          <motion.path
-            d="M 400 790 C 400 745 400 700 400 640"
-            stroke="url(#trunk-grad)"
-            strokeWidth="16"
-            strokeLinecap="round"
-            fill="none"
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 1.4, ease: "easeInOut" }}
-          />
-          <motion.path
-            d="M 398 790 C 398 742 400 702 402 640"
-            stroke="rgba(74, 222, 128, 0.14)"
-            strokeWidth="5"
-            strokeLinecap="round"
-            fill="none"
-            initial={{ pathLength: 0, opacity: 0 }}
-            animate={{ pathLength: 1, opacity: 1 }}
-            transition={{ duration: 1.55, ease: "easeInOut" }}
-          />
-        </motion.g>
+        {layoutNodes.map((node) => {
+          const isExpanded = expandedIds.has(node.id);
+          const isMainNode = node.depth <= 1;
+          const animDelay = `${(node.depth * 0.15)}s`;
+          const IconCmp = getIconForCategory(node.id);
 
-        {/* Links (Roots) */}
-        <g>
-          <AnimatePresence>
-            {processedNodes.map((node) => {
-              if (!node.parentPos) return null;
-
-              const d = node.pathD ?? `M ${node.parentPos.x} ${node.parentPos.y} L ${node.x} ${node.y}`;
-              const isActive = activeNodeId === node.id;
-
-              const seed = mulberry32(hashStringToSeed(`thickness:${node.id}`));
-              const thicknessJitter = (seed() - 0.5) * 1.4;
-              const baseW = Math.max(1.2, 7.5 - node.depth * 1.55);
-              const wOuter = clamp(baseW + 2.2 + thicknessJitter, 2, 10);
-              const wInner = clamp(baseW - 1.4 + thicknessJitter * 0.4, 1, 7);
-
-              return (
-                <motion.g key={`link-${node.id}`}>
-                  {/* Outer bark (subtle depth + thickness variation) */}
-                  <motion.path
-                    d={d}
-                    fill="none"
-                    stroke="rgba(255,255,255,0.08)"
-                    strokeWidth={wOuter}
-                    strokeLinecap="round"
-                    opacity={isActive ? 0.22 : 0.14}
-                    style={{ filter: isActive ? "url(#glow)" : "none" }}
-                    initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: isActive ? 0.22 : 0.14 }}
-                    exit={{ pathLength: 0, opacity: 0 }}
-                    transition={{ duration: node.growDuration, delay: node.growDelay, ease: "easeInOut" }}
-                    onMouseEnter={() => setHoveredNodeId(node.id)}
-                    onMouseLeave={() => setHoveredNodeId(null)}
-                    onClick={(e) => handleNodeClick(node, e)}
-                    className="cursor-pointer"
-                  />
-                  {/* Inner living root (colored) */}
-                  <motion.path
-                    d={d}
-                    fill="none"
-                    stroke={node.color}
-                    strokeWidth={wInner}
-                    strokeLinecap="round"
-                    opacity={isActive ? 0.9 : 0.55}
-                    style={{
-                      filter: isActive ? "drop-shadow(0 0 10px rgba(255,255,255,0.18))" : "none",
-                    }}
-                    initial={{ pathLength: 0, opacity: 0 }}
-                    animate={{ pathLength: 1, opacity: isActive ? 0.9 : 0.55 }}
-                    exit={{ pathLength: 0, opacity: 0 }}
-                    transition={{ duration: node.growDuration, delay: node.growDelay, ease: "easeInOut" }}
-                    onMouseEnter={() => setHoveredNodeId(node.id)}
-                    onMouseLeave={() => setHoveredNodeId(null)}
-                    onClick={(e) => handleNodeClick(node, e)}
-                    className="cursor-pointer"
-                  />
-                </motion.g>
-              );
-            })}
-          </AnimatePresence>
-        </g>
-
-        {/* Nodes */}
-        <g>
-          <AnimatePresence>
-            {processedNodes.map((node) => (
-              <motion.g
-                key={`node-${node.id}`}
-                initial={{ scale: 0, opacity: 0, x: node.parentPos?.x || 400, y: node.parentPos?.y || 640 }}
-                animate={{ 
-                  scale: 1, 
-                  opacity: 1, 
-                  x: node.x, 
-                  y: node.y,
-                  filter: hoveredNodeId === node.id || selectedNode?.id === node.id ? "url(#glow)" : "none"
-                }}
-                exit={{ scale: 0, opacity: 0, x: node.parentPos?.x || 400, y: node.parentPos?.y || 640 }}
-                transition={{ type: "spring", stiffness: 220, damping: 18, delay: Math.max(0, node.arriveTime - 0.06) }}
-                onMouseEnter={() => setHoveredNodeId(node.id)}
-                onMouseLeave={() => setHoveredNodeId(null)}
-                onClick={(e) => handleNodeClick(node, e)}
-                className="cursor-pointer group"
-              >
-                {/* Organic Shape (Leaf/Seed) */}
-                <motion.path
-                  d="M 0 0 C -12 -8, -12 -20, 0 -28 C 12 -20, 12 -8, 0 0 Z"
-                  fill={node.color}
-                  opacity={selectedNode?.id === node.id ? 1 : 0.8}
-                  whileHover={{ scale: 1.2 }}
-                  animate={(() => {
-                    const r = mulberry32(hashStringToSeed(`node-wiggle:${node.id}`));
-                    const baseRot = (r() - 0.5) * 10;
-                    const wiggle = 2 + r() * 2.5;
-                    return {
-                      rotate: [baseRot - wiggle, baseRot + wiggle, baseRot - wiggle],
-                      scale: selectedNode?.id === node.id ? 1.2 : 1,
-                    };
-                  })()}
-                  transition={(() => {
-                    const r = mulberry32(hashStringToSeed(`node-wiggle:${node.id}`));
-                    const dur = 3.8 + r() * 2.6;
-                    return {
-                      rotate: { duration: dur, repeat: Infinity, ease: "easeInOut" },
-                      scale: { type: "spring", stiffness: 260, damping: 20 },
-                    };
-                  })()}
-                />
-
-                {/* Label */}
-                <motion.text
-                  y={15}
-                  textAnchor="middle"
-                  fill="var(--text-primary)"
-                  fontSize={12 - node.depth}
-                  fontWeight={node.depth === 0 ? "bold" : "medium"}
-                  className="pointer-events-none select-none drop-shadow-md"
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ duration: 0.35, delay: node.arriveTime + 0.06, ease: "easeOut" }}
+          return (
+            <div
+              key={node.id}
+              onMouseEnter={() => { hoverRef.current = node.id; }}
+              onMouseLeave={() => { hoverRef.current = null; }}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (node.hasChildren) toggleExpand(node.id);
+                setSelectedNode(node.data);
+              }}
+              className={`absolute node-enter flex items-center justify-center cursor-pointer transition-transform duration-300 hover:scale-110 z-10`}
+              style={{
+                left: node.x,
+                top: node.y,
+                animationDelay: animDelay,
+                opacity: 0
+              }}
+            >
+              {isMainNode ? (
+                <div 
+                  className={`px-6 py-5 rounded-3xl font-body font-bold text-lg tracking-wide border-2 flex flex-col items-center gap-3 backdrop-blur-xl transition-all min-w-[160px]`}
+                  style={{
+                    backgroundColor: `rgba(10, 22, 40, 0.7)`,
+                    borderColor: isExpanded ? node.color : `${node.color}60`,
+                    color: "#ffffff",
+                    boxShadow: isExpanded 
+                      ? `0 0 30px ${node.color}40, inset 0 0 15px ${node.color}20` 
+                      : `0 10px 25px rgba(0,0,0,0.5)`,
+                    transform: isExpanded ? 'translateY(-5px)' : 'none'
+                  }}
                 >
+                  <div 
+                    className="p-3 rounded-2xl mb-1" 
+                    style={{ backgroundColor: `${node.color}20`, border: `1px solid ${node.color}40` }}
+                  >
+                    <IconCmp style={{ color: node.color }} size={28} />
+                  </div>
+                  <div className="text-[10px] uppercase tracking-widest opacity-60" style={{ color: node.color }}>
+                    Domain
+                  </div>
+                  <span className="text-center leading-tight">{node.label}</span>
+                  {node.hasChildren && (
+                    <div className="mt-1 w-6 h-6 rounded-full flex items-center justify-center border border-white/20 bg-white/5">
+                      <span className="text-sm font-light">
+                        {isExpanded ? "−" : "+"}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div 
+                  className={`px-4 py-1.5 rounded-full font-body font-medium text-xs tracking-wider border flex items-center gap-2 backdrop-blur-md transition-all whitespace-nowrap`}
+                  style={{
+                    backgroundColor: `${node.color}15`,
+                    borderColor: `${node.color}40`,
+                    color: "#e2ffe8",
+                    boxShadow: `0 4px 15px rgba(0,0,0,0.3)`
+                  }}
+                >
+                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: node.color, boxShadow: `0 0 8px ${node.color}` }} />
                   {node.label}
-                </motion.text>
+                </div>
+              )}
+            </div>
+          );
+        })}
 
-                {/* Expand Indicator */}
-                {node.children && node.children.length > 0 && (
-                  <motion.circle
-                    r={3}
-                    cy={-32}
-                    fill={expandedNodeIds.has(node.id) ? "white" : node.color}
-                    animate={{ 
-                      scale: expandedNodeIds.has(node.id) ? [1, 1.5, 1] : 1,
-                      opacity: expandedNodeIds.has(node.id) ? 1 : 0.6
-                    }}
-                    transition={{ repeat: expandedNodeIds.has(node.id) ? Infinity : 0, duration: 2 }}
-                  />
-                )}
-              </motion.g>
+        <div className="absolute left-1/2 top-0 -translate-x-1/2 w-[400px] h-[200px] flex items-center justify-center pointer-events-none z-10">
+          <svg viewBox="0 0 400 200" className="w-full h-full filter drop-shadow-[0_0_20px_rgba(74,222,128,0.3)]">
+            <defs>
+              <linearGradient id="tree-grad" x1="0" y1="0" x2="0" y2="1">
+                <stop offset="0%" stopColor="#4ade80" />
+                <stop offset="100%" stopColor="#10b981" />
+              </linearGradient>
+            </defs>
+            <motion.path 
+              d="M 200 180 Q 200 100 120 60 Q 150 40 200 40 Q 250 40 280 60 Q 200 100 200 180" 
+              fill="url(#tree-grad)"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 1.5 }}
+            />
+            {[...Array(5)].map((_, i) => (
+              <motion.circle
+                key={i}
+                cx={150 + i * 25}
+                cy={50 + Math.sin(i) * 10}
+                r="3"
+                fill="#ffffff"
+                animate={{ opacity: [0.3, 1, 0.3], scale: [1, 1.5, 1] }}
+                transition={{ repeat: Infinity, duration: 2 + i, ease: "easeInOut" }}
+              />
             ))}
-          </AnimatePresence>
-        </g>
-      </svg>
+          </svg>
+        </div>
 
-      {/* UI Overlay */}
-      <div className="absolute top-6 left-6 z-10 space-y-2">
-        <h1 className="text-2xl font-display font-bold text-white tracking-tight">
-          Learning Roots
-        </h1>
-        <p className="text-sm text-[var(--text-muted)] max-w-[200px]">
-          Click nodes to explore subtopics. Your path grows with every click.
-        </p>
+        <div 
+          className="absolute left-1/2 top-[180px] w-8 h-8 rounded-full border-4 border-[#0a1628] bg-[#4ade80] transform -translate-x-1/2 -translate-y-1/2 shadow-[0_0_40px_rgba(74,222,128,0.8)] z-20"
+        />
       </div>
 
       <NodeDetailPanel 
         node={selectedNode} 
         onClose={() => setSelectedNode(null)} 
       />
-
-      {/* Micro-animations: Fireflies */}
-      <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {[...Array(15)].map((_, i) => (
-          <motion.div
-            key={i}
-            className="absolute w-1 h-1 bg-[var(--accent-teal)] rounded-full"
-            initial={{ 
-              x: Math.random() * 100 + "%", 
-              y: Math.random() * 100 + "%", 
-              opacity: 0 
-            }}
-            animate={{ 
-              x: [null, Math.random() * 100 + "%"],
-              y: [null, Math.random() * 100 + "%"],
-              opacity: [0, 0.4, 0]
-            }}
-            transition={{ 
-              duration: 10 + Math.random() * 20, 
-              repeat: Infinity, 
-              ease: "linear" 
-            }}
-          />
-        ))}
-      </div>
     </div>
   );
 }

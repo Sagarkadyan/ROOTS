@@ -4,11 +4,23 @@ import { Sidebar } from "../../components/layout/Sidebar";
 import { ProfileHeroCard } from "../../components/dashboard/ProfileHeroCard";
 import { LearningPathCard } from "../../components/dashboard/LearningPathCard";
 import { DailyGoalCard } from "../../components/dashboard/DailyGoalCard";
-import { ActivityFeed } from "../../components/dashboard/ActivityFeed";
-import { AchievementGrid } from "../../components/dashboard/AchievementGrid";
 import { ChatToggleButton } from "../../components/chat/ChatToggleButton";
-import { ChatPanel } from "../../components/chat/ChatPanel";
+import dynamic from "next/dynamic";
 import { useState } from "react";
+
+const ActivityFeed = dynamic(() => import("../../components/dashboard/ActivityFeed").then(mod => mod.ActivityFeed), {
+  loading: () => <div className="h-64 animate-pulse bg-glass-card rounded-3xl" />,
+  ssr: false
+});
+
+const AchievementGrid = dynamic(() => import("../../components/dashboard/AchievementGrid").then(mod => mod.AchievementGrid), {
+  loading: () => <div className="h-64 animate-pulse bg-glass-card rounded-3xl" />,
+  ssr: false
+});
+
+const ChatPanel = dynamic(() => import("../../components/chat/ChatPanel").then(mod => mod.ChatPanel), {
+  ssr: false
+});
 
 export default function DashboardPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);

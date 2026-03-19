@@ -15,6 +15,7 @@ export const StatPill = ({ icon, value, label, color }: StatPillProps) => {
   const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
+    let frameId: number;
     let start = 0;
     const end = value;
     if (start === end) return;
@@ -30,9 +31,12 @@ export const StatPill = ({ icon, value, label, color }: StatPillProps) => {
       // easeOutQuart
       const ease = 1 - Math.pow(1 - pct, 4);
       setDisplayValue(Math.floor(start + (end - start) * ease));
-      if (pct < 1) requestAnimationFrame(animate);
+      if (pct < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
     };
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
   }, [value]);
 
   return (

@@ -3,7 +3,7 @@
 import { motion, AnimatePresence } from "framer-motion";
 import { TreeNodeChild } from "../../lib/treeData";
 import { GlowButton } from "../ui/GlowButton";
-import * as Icons from "lucide-react";
+import { X, Clock } from "lucide-react";
 
 interface NodeDetailPanelProps {
   node: TreeNodeChild | null;
@@ -31,7 +31,7 @@ export const NodeDetailPanel = ({ node, onClose }: NodeDetailPanelProps) => {
               onClick={onClose}
               className="absolute top-6 right-6 text-[var(--text-muted)] hover:text-white transition-colors"
             >
-              <Icons.X className="w-6 h-6" />
+              <X className="w-6 h-6" />
             </button>
 
             <div className="mt-4 mb-6">
@@ -41,7 +41,7 @@ export const NodeDetailPanel = ({ node, onClose }: NodeDetailPanelProps) => {
               <div className="flex gap-3 mb-4">
                 {node.estimatedHours && (
                   <span className="flex items-center gap-1 text-xs px-2 py-1 rounded-md bg-[rgba(255,255,255,0.05)] text-[var(--text-muted)] border border-[var(--border-glass)]">
-                    <Icons.Clock className="w-3 h-3" />
+                    <Clock className="w-3 h-3" />
                     ~{node.estimatedHours} hours
                   </span>
                 )}

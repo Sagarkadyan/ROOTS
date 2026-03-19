@@ -17,6 +17,7 @@ export const StreakStatCard = ({ icon, label, value, color, suffix = "" }: Strea
   const [displayValue, setDisplayValue] = useState(0);
 
   useEffect(() => {
+    let frameId: number;
     let start = 0;
     const end = value;
     const duration = 1500;
@@ -28,9 +29,12 @@ export const StreakStatCard = ({ icon, label, value, color, suffix = "" }: Strea
       const pct = Math.min(progress / duration, 1);
       const ease = 1 - Math.pow(1 - pct, 4);
       setDisplayValue(Math.floor(start + (end - start) * ease));
-      if (pct < 1) requestAnimationFrame(animate);
+      if (pct < 1) {
+        frameId = requestAnimationFrame(animate);
+      }
     };
-    requestAnimationFrame(animate);
+    frameId = requestAnimationFrame(animate);
+    return () => cancelAnimationFrame(frameId);
   }, [value]);
 
   return (

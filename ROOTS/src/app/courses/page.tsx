@@ -5,10 +5,14 @@ import { GlassCard } from "../../components/ui/GlassCard";
 import { SectionTitle } from "../../components/ui/SectionTitle";
 import { GlowButton } from "../../components/ui/GlowButton";
 import { ChatToggleButton } from "../../components/chat/ChatToggleButton";
-import { ChatPanel } from "../../components/chat/ChatPanel";
+import dynamic from "next/dynamic";
 import { useState } from "react";
 import { motion } from "framer-motion";
 import * as Icons from "lucide-react";
+
+const ChatPanel = dynamic(() => import("../../components/chat/ChatPanel").then(mod => mod.ChatPanel), {
+  ssr: false
+});
 
 export default function CoursesPage() {
   const [isChatOpen, setIsChatOpen] = useState(false);
