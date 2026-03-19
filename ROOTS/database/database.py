@@ -2,10 +2,17 @@ import sqlite3
 import os
 import time
 
-DB_PATH = os.path.join(os.path.dirname(__file__), 'users.db')
+# Use absolute paths for the databases
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'users.db')
+COURSES_DB_PATH = os.path.join(BASE_DIR, 'courses.db')
 
 def get_db():
     conn = sqlite3.connect(DB_PATH, check_same_thread=False)
+    return conn
+
+def get_courses_db():
+    conn = sqlite3.connect(COURSES_DB_PATH, check_same_thread=False)
     return conn
 
 def init_db():
@@ -145,6 +152,36 @@ def get_user_by_identifier(identifier):
     except Exception as e:
         print(f"Error getting user: {e}")
         return None
+
+# --- Course related functions ---
+
+def search_courses(topic):
+    try:
+        with get_courses_db() as conn:
+            cursor = conn.cursor()
+            query = f"%{topic}%"
+            cursor.execute(
+                "SELECT platform, title, url FROM courses WHERE title LIKE ? ORDER BY id DESC",
+                (query,)
+            )
+            rows = cursor.fetchall()
+            return [{"platform": r[0], "title": r[1], "url": r[2]} for r in rows]
+    except Exception as e:
+        print(f"Error searching courses: {e}")
+        return []
+
+def get_all_courses():
+    try:
+        with get_courses_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT platform, title, url FROM courses ORDER BY id DESC"
+            )
+            rows = cursor.fetchall()
+            return [{"platform": r[0], "title": r[1], "url": r[2]} for r in rows]
+    except Exception as e:
+        print(f"Error getting all courses: {e}")
+        return []
 
 if __name__ == "__main__":
     init_db()

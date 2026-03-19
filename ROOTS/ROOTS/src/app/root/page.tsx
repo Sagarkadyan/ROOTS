@@ -1,10 +1,12 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { Sidebar } from "../../components/layout/Sidebar";
 import { ChatToggleButton } from "../../components/chat/ChatToggleButton";
 import { ChatPanel } from "../../components/chat/ChatPanel";
+import { GlassCard } from "../../components/ui/GlassCard";
+import { GlowButton } from "../../components/ui/GlowButton";
 import * as Icons from "lucide-react";
 
 interface Subtopic {
@@ -18,6 +20,12 @@ interface RootCategory {
   color: string;
   icon: keyof typeof Icons;
   subtopics: Subtopic[];
+}
+
+interface Course {
+  platform: string;
+  title: string;
+  url: string;
 }
 
 const CATEGORIES: RootCategory[] = [
@@ -83,6 +91,27 @@ const CATEGORIES: RootCategory[] = [
 export default function LivingRootsPage() {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [isChatOpen, setIsChatOpen] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isCoursesLoading, setIsCoursesLoading] = useState(false);
+
+  const handleSubtopicClick = async (label: string) => {
+    setSelectedTopic(label);
+    setIsCoursesLoading(true);
+    setCourses([]);
+    
+    try {
+      const response = await fetch(`/api/courses?topic=${encodeURIComponent(label)}`);
+      const data = await response.json();
+      if (data.status === "success") {
+        setCourses(data.courses);
+      }
+    } catch (err) {
+      console.error("Failed to fetch courses:", err);
+    } finally {
+      setIsCoursesLoading(false);
+    }
+  };
 
   return (
     <div className="flex h-screen bg-[#050a0e] overflow-hidden text-[#e2ffe8] font-sans selection:bg-[rgba(74,222,128,0.3)] relative">
@@ -233,6 +262,7 @@ export default function LivingRootsPage() {
                               <motion.button
                                 whileHover={{ scale: 1.05, backgroundColor: `${cat.color}20` }}
                                 whileTap={{ scale: 0.95 }}
+                                onClick={() => handleSubtopicClick(sub.label)}
                                 className="px-5 py-2.5 rounded-full border text-sm font-medium whitespace-nowrap transition-colors"
                                 style={{ 
                                   borderColor: `${cat.color}40`,
@@ -252,6 +282,93 @@ export default function LivingRootsPage() {
             })}
           </div>
         </motion.div>
+
+        {/* Courses Overlay Panel */}
+        <AnimatePresence>
+          {selectedTopic && (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-[#050a0e]/80 backdrop-blur-sm"
+              onClick={() => setSelectedTopic(null)}
+            >
+              <div 
+                className="w-full max-w-4xl max-h-[80vh] bg-glass-card rounded-3xl overflow-hidden flex flex-col shadow-2xl border border-[var(--border-glass)]"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div className="p-6 border-b border-[var(--border-glass)] flex justify-between items-center bg-[#0a1628]/60">
+                  <div>
+                    <h2 className="text-3xl font-display font-bold text-gradient">
+                      Courses: {selectedTopic}
+                    </h2>
+                    <p className="text-[var(--text-muted)] text-sm mt-1">
+                      Choose a branch to start growing your knowledge
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => setSelectedTopic(null)}
+                    className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                  >
+                    <Icons.X className="w-6 h-6 text-[var(--text-muted)]" />
+                  </button>
+                </div>
+                
+                <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                  {isCoursesLoading ? (
+                    <div className="flex flex-col items-center justify-center py-20 gap-4">
+                      <div className="w-12 h-12 border-4 border-[var(--accent-green)] border-t-transparent rounded-full animate-spin"></div>
+                      <p className="text-[var(--text-muted)] animate-pulse">Searching through the web roots...</p>
+                    </div>
+                  ) : courses.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {courses.map((course, i) => (
+                        <motion.div 
+                          key={i}
+                          initial={{ opacity: 0, y: 20 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: i * 0.05 }}
+                        >
+                          <GlassCard className="h-full flex flex-col group border-[rgba(255,255,255,0.05)] hover:border-[var(--accent-green)] transition-all">
+                            <div className="flex justify-between items-start mb-4">
+                              <span className="text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded bg-[var(--accent-green)]/10 text-[var(--accent-green)]">
+                                {course.platform}
+                              </span>
+                              <Icons.ExternalLink className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-green)] transition-colors" />
+                            </div>
+                            <h3 className="text-lg font-bold text-[var(--text-primary)] mb-6 group-hover:text-[var(--accent-green)] transition-colors line-clamp-2">
+                              {course.title}
+                            </h3>
+                            <GlowButton 
+                              fullWidth 
+                              onClick={() => window.open(course.url, '_blank')}
+                              className="mt-auto"
+                            >
+                              Study Course →
+                            </GlowButton>
+                          </GlassCard>
+                        </motion.div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center py-20 text-center">
+                      <Icons.SearchX className="w-16 h-16 text-[var(--text-muted)] mb-4" />
+                      <h3 className="text-xl font-bold">No courses found yet</h3>
+                      <p className="text-[var(--text-muted)] mt-2">Try selecting another subtopic or check back later while our scraper expands its branches.</p>
+                      <GlowButton 
+                        variant="secondary" 
+                        className="mt-6"
+                        onClick={() => setSelectedTopic(null)}
+                      >
+                        Go Back
+                      </GlowButton>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </main>
 
       <ChatToggleButton onClick={() => setIsChatOpen(!isChatOpen)} />

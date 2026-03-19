@@ -8,12 +8,22 @@ import time
 from dotenv import load_dotenv
 
 # Load environment variables from .env
-load_dotenv()
+load_dotenv(os.path.join(os.path.dirname(__file__), '.env'))
 
 # Add the project root to the python path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database import adder, check_password, update_pss, delete_user, store_otp, verify_otp, get_user_by_identifier
+from database import (
+    adder, 
+    check_password, 
+    update_pss, 
+    delete_user, 
+    store_otp, 
+    verify_otp, 
+    get_user_by_identifier,
+    search_courses,
+    get_all_courses
+)
 from flask import Flask, request, redirect, url_for, session, render_template, render_template_string, send_from_directory, jsonify
 
 # Gemini API Configuration
@@ -137,8 +147,24 @@ def chat():
     user_message = data.get('message')
     history = data.get('history', []) 
     
-    # System context for the AI
-    system_prompt = "You are ROOTS AI, an advanced, futuristic learning guide within 'The Living Roots' platform. Your goal is to guide users through the roots of technology (Web Dev, Data Science, etc.). Keep responses concise, helpful, and maintain a slightly cyberpunk/futuristic tone. Refer to 'growing roots' and 'expanding branches' when appropriate."
+    # Gemini API requires the conversation to start with a 'user' turn.
+    # If the history starts with a 'model' turn, we skip it.
+    while history and history[0].get('role') == 'model':
+        history.pop(0)
+
+    # System context for the AI with safety guardrails
+    system_prompt = (
+        "You are ROOTS AI, an advanced, futuristic learning guide within 'The Living Roots' platform. "
+        "Your goal is to guide users through the roots of technology (Web Dev, Data Science, Cybersecurity, etc.). "
+        "STRICT GUARDRAILS:\n"
+        "1. Focus ONLY on technology, programming, career guidance, and the ROOTS platform. "
+        "2. Refuse to answer questions about illegal activities, hacking for harm, or creating malware. "
+        "3. Do not provide medical, legal, or financial advice. "
+        "4. If a user asks something dangerous, offensive, or completely unrelated to learning, "
+        "politely decline and redirect them to 'expanding their roots' in technology.\n"
+        "Keep responses concise, helpful, and maintain a slightly cyberpunk/futuristic tone. "
+        "Refer to 'growing roots' and 'expanding branches' when appropriate."
+    )
     
     payload = {
         "contents": history + [{"role": "user", "parts": [{"text": user_message}]}],
@@ -163,13 +189,23 @@ def chat():
                 print(f"Rate limited (429). Retrying in {wait_time}s... (Attempt {attempt + 1}/{max_retries})")
                 time.sleep(wait_time)
                 continue
+            
+            if response.status_code != 200:
+                print(f"Gemini API Error {response.status_code}: {response.text}")
+                return jsonify({"status": "error", "message": f"Gemini API Error: {response.text}"}), response.status_code
                 
-            response.raise_for_status()
             resp_data = response.json()
             
             # Extract assistant response
-            assistant_text = resp_data['candidates'][0]['content']['parts'][0]['text']
-            return jsonify({"status": "success", "text": assistant_text})
+            if 'candidates' in resp_data and resp_data['candidates']:
+                candidate = resp_data['candidates'][0]
+                if 'content' in candidate and 'parts' in candidate['content']:
+                    assistant_text = candidate['content']['parts'][0]['text']
+                    return jsonify({"status": "success", "text": assistant_text})
+                elif 'finishReason' in candidate:
+                    return jsonify({"status": "error", "message": f"AI finished with reason: {candidate['finishReason']}"}), 500
+            
+            return jsonify({"status": "error", "message": "Unexpected response format from Gemini"}), 500
         except Exception as e:
             if attempt == max_retries - 1:
                 print(f"Chat API error after {max_retries} attempts: {e}")
@@ -191,6 +227,15 @@ def get_session():
             }
         })
     return jsonify({"status": "error", "message": "Not logged in"}), 401
+
+@app.route('/api/courses')
+def get_courses():
+    topic = request.args.get('topic')
+    if topic:
+        courses = search_courses(topic)
+    else:
+        courses = get_all_courses()
+    return jsonify({"status": "success", "courses": courses})
 
 @app.route('/play/<course_id>')
 def play_course(course_id):
