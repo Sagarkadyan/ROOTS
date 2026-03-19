@@ -3,14 +3,13 @@
 import { useEffect, useState } from "react";
 import { GlassCard } from "../ui/GlassCard";
 import { motion } from "framer-motion";
-import { mockUser } from "../../lib/mockUser";
 
-export const FlameHero = () => {
+export const FlameHero = ({ streak = 0 }: { streak?: number }) => {
   const [displayCount, setDisplayCount] = useState(0);
 
   useEffect(() => {
     let start = 0;
-    const end = mockUser.streakTracker;
+    const end = streak;
     const duration = 1500;
     let startTime: number | null = null;
     
@@ -23,7 +22,7 @@ export const FlameHero = () => {
       if (pct < 1) requestAnimationFrame(animate);
     };
     requestAnimationFrame(animate);
-  }, []);
+  }, [streak]);
 
   return (
     <GlassCard className="w-full relative overflow-hidden py-16 flex flex-col items-center justify-center text-center">

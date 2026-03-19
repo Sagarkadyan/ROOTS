@@ -7,10 +7,10 @@ import { GlowButton } from "../ui/GlowButton";
 
 export const LearningPathCard = () => {
   const steps = [
-    { name: "HTML", progress: 100, color: "var(--accent-green)" },
-    { name: "CSS", progress: 85, color: "var(--accent-green)" },
-    { name: "JavaScript", progress: 60, color: "var(--accent-green)" },
-    { name: "Frameworks", progress: 20, color: "var(--accent-teal)" },
+    { name: "HTML", progress: 0, color: "var(--accent-green)" },
+    { name: "CSS", progress: 0, color: "var(--accent-green)" },
+    { name: "JavaScript", progress: 0, color: "var(--accent-green)" },
+    { name: "Frameworks", progress: 0, color: "var(--accent-teal)" },
   ];
 
   return (
@@ -18,16 +18,16 @@ export const LearningPathCard = () => {
       <div>
         <SectionTitle icon="Map">Your Current Path — Web Development</SectionTitle>
         <div className="flex justify-center my-6">
-          <svg width="200" height="120" viewBox="0 0 200 120" className="opacity-80">
+          <svg width="200" height="120" viewBox="0 0 200 120" className="opacity-50">
             {/* Trunk */}
             <path d="M 100 120 L 100 80" stroke="#4a3728" strokeWidth="6" fill="none" />
-            <path d="M 100 80 Q 70 50 40 30" stroke="var(--accent-green)" strokeWidth="3" fill="none" />
-            <path d="M 100 80 Q 130 50 160 30" stroke="var(--accent-teal)" strokeWidth="3" fill="none" />
+            <path d="M 100 80 Q 70 50 40 30" stroke="var(--border-glass)" strokeWidth="3" fill="none" />
+            <path d="M 100 80 Q 130 50 160 30" stroke="var(--border-glass)" strokeWidth="3" fill="none" />
             <path d="M 100 80 Q 100 40 100 10" stroke="var(--border-glass)" strokeWidth="3" fill="none" />
             {/* Nodes */}
-            <circle cx="40" cy="30" r="10" fill="var(--accent-green)" />
-            <circle cx="160" cy="30" r="10" fill="var(--accent-teal)" />
-            <circle cx="100" cy="10" r="10" fill="var(--bg-surface)" stroke="var(--border-glass)" />
+            <circle cx="40" cy="30" r="6" fill="var(--bg-surface)" stroke="var(--border-glass)" />
+            <circle cx="160" cy="30" r="6" fill="var(--bg-surface)" stroke="var(--border-glass)" />
+            <circle cx="100" cy="10" r="6" fill="var(--bg-surface)" stroke="var(--border-glass)" />
           </svg>
         </div>
         

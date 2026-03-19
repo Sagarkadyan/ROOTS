@@ -5,13 +5,13 @@ import { GlassCard } from "../ui/GlassCard";
 import { SectionTitle } from "../ui/SectionTitle";
 
 const data = [
-  { day: "Mon", hours: 1.5 },
-  { day: "Tue", hours: 2.2 },
-  { day: "Wed", hours: 0.8 },
-  { day: "Thu", hours: 3.1 },
-  { day: "Fri", hours: 1.9 },
-  { day: "Sat", hours: 2.5 },
-  { day: "Sun", hours: 0.4 }
+  { day: "Mon", hours: 0 },
+  { day: "Tue", hours: 0 },
+  { day: "Wed", hours: 0 },
+  { day: "Thu", hours: 0 },
+  { day: "Fri", hours: 0 },
+  { day: "Sat", hours: 0 },
+  { day: "Sun", hours: 0 }
 ];
 
 const CustomTooltip = ({ active, payload, label }: any) => {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Leaf, Map, BookOpen, Flame, User, LogOut, TreePine } from "lucide-react";
+import { Leaf, BookOpen, Flame, User, LogOut, TreePine } from "lucide-react";
 import { useState, useEffect } from "react";
 import { motion } from "framer-motion";
 
@@ -28,7 +28,6 @@ export const Sidebar = () => {
 
   const navItems = [
     { label: "Root", href: "/root", icon: TreePine },
-    { label: "My Path", href: "/path", icon: Map },
     { label: "Courses", href: "/courses", icon: BookOpen },
     { label: "Streak", href: "/streak", icon: Flame },
     { label: "Dashboard", href: "/dashboard", icon: User },

@@ -6,6 +6,7 @@ from .database import (
     store_otp, 
     verify_otp, 
     get_user_by_identifier,
+    get_user_profile,
     search_courses,
     get_all_courses
 )

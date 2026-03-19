@@ -21,6 +21,7 @@ from database import (
     store_otp, 
     verify_otp, 
     get_user_by_identifier,
+    get_user_profile,
     search_courses,
     get_all_courses
 )
@@ -42,11 +43,7 @@ app = Flask(__name__,
 app.secret_key = 'super_secret_development_key'
 
 # Dictionary mapping course IDs to external video URLs
-COURSE_LINKS = {
-    "red_teaming_101": "https://www.youtube.com/watch?v=example1", 
-    "bug_bounty_basics": "https://www.youtube.com/watch?v=example2",
-    "roblox_game_dev": "https://www.youtube.com/watch?v=example3"
-}
+COURSE_LINKS = {}
 
 # --- SPA Routing Helpers ---
 @app.route('/')
@@ -57,7 +54,6 @@ def serve_index():
 
 @app.route('/root')
 @app.route('/dashboard')
-@app.route('/path')
 @app.route('/courses')
 @app.route('/streak')
 @app.route('/tree')
@@ -217,13 +213,19 @@ def chat():
 @app.route('/api/session')
 def get_session():
     if 'user_name' in session:
+        profile = get_user_profile(session['user_name'])
         return jsonify({
             "status": "success", 
             "user": {
-                "name": session['user_name'],
-                "level": 14, 
-                "xp": 12450,
-                "maxXP": 15000
+                "name": profile['name'] if profile else session['user_name'],
+                "email": profile['email'] if profile else "No email found",
+                "level": 1, 
+                "xp": 0,
+                "maxXP": 1000,
+                "streak": 0,
+                "longestStreak": 0,
+                "totalXPEarned": 0,
+                "sessionsThisMonth": 0
             }
         })
     return jsonify({"status": "error", "message": "Not logged in"}), 401

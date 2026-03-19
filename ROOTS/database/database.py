@@ -144,13 +144,29 @@ def get_user_by_identifier(identifier):
         with get_db() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT name FROM users WHERE email = ? OR number = ?",
-                (identifier, identifier)
+                "SELECT name FROM users WHERE email = ? OR number = ? OR name = ?",
+                (identifier, identifier, identifier)
             )
             row = cursor.fetchone()
             return row[0] if row else None
     except Exception as e:
         print(f"Error getting user: {e}")
+        return None
+
+def get_user_profile(name):
+    try:
+        with get_db() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT name, email FROM users WHERE name = ?",
+                (name,)
+            )
+            row = cursor.fetchone()
+            if row:
+                return {"name": row[0], "email": row[1]}
+            return None
+    except Exception as e:
+        print(f"Error getting user profile: {e}")
         return None
 
 # --- Course related functions ---

@@ -7,10 +7,10 @@ import { Lock } from "lucide-react";
 
 export const AchievementGrid = () => {
   const achievements = [
-    { title: "First Leaf", xp: 100, emoji: "🌱", unlocked: true },
-    { title: "7-Day Streak", xp: 200, emoji: "🔥", unlocked: true },
-    { title: "HTML Master", xp: 500, emoji: "🧱", unlocked: true },
-    { title: "Night Owl", xp: 150, emoji: "🦉", unlocked: true },
+    { title: "First Leaf", xp: 100, emoji: "🌱", unlocked: false },
+    { title: "7-Day Streak", xp: 200, emoji: "🔥", unlocked: false },
+    { title: "HTML Master", xp: 500, emoji: "🧱", unlocked: false },
+    { title: "Night Owl", xp: 150, emoji: "🦉", unlocked: false },
     { title: "Branch Out", xp: 300, emoji: "🌿", unlocked: false },
     { title: "Century Streak", xp: 1000, emoji: "💯", unlocked: false },
     { title: "Full Stack", xp: 2000, emoji: "🏗️", unlocked: false },

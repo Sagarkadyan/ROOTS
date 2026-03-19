@@ -94,6 +94,30 @@ export default function LivingRootsPage() {
   const [selectedTopic, setSelectedTopic] = useState<string | null>(null);
   const [courses, setCourses] = useState<Course[]>([]);
   const [isCoursesLoading, setIsCoursesLoading] = useState(false);
+  const [enrolledCourses, setEnrolledCourses] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const saved = localStorage.getItem("enrolledCourses");
+    if (saved) {
+      try {
+        setEnrolledCourses(new Set(JSON.parse(saved)));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
+  const toggleEnroll = (url: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    const newEnrolled = new Set(enrolledCourses);
+    if (newEnrolled.has(url)) {
+      newEnrolled.delete(url);
+    } else {
+      newEnrolled.add(url);
+    }
+    setEnrolledCourses(newEnrolled);
+    localStorage.setItem("enrolledCourses", JSON.stringify(Array.from(newEnrolled)));
+  };
 
   const handleSubtopicClick = async (label: string) => {
     setSelectedTopic(label);
@@ -322,33 +346,42 @@ export default function LivingRootsPage() {
                     </div>
                   ) : courses.length > 0 ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      {courses.map((course, i) => (
-                        <motion.div 
-                          key={i}
-                          initial={{ opacity: 0, y: 20 }}
-                          animate={{ opacity: 1, y: 0 }}
-                          transition={{ delay: i * 0.05 }}
-                        >
-                          <GlassCard className="h-full flex flex-col group border-[rgba(255,255,255,0.05)] hover:border-[var(--accent-green)] transition-all">
-                            <div className="flex justify-between items-start mb-4">
-                              <span className="text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded bg-[var(--accent-green)]/10 text-[var(--accent-green)]">
-                                {course.platform}
-                              </span>
-                              <Icons.ExternalLink className="w-4 h-4 text-[var(--text-muted)] group-hover:text-[var(--accent-green)] transition-colors" />
-                            </div>
-                            <h3 className="text-lg font-bold text-[var(--text-primary)] mb-6 group-hover:text-[var(--accent-green)] transition-colors line-clamp-2">
-                              {course.title}
-                            </h3>
-                            <GlowButton 
-                              fullWidth 
-                              onClick={() => window.open(course.url, '_blank')}
-                              className="mt-auto"
-                            >
-                              Study Course →
-                            </GlowButton>
-                          </GlassCard>
-                        </motion.div>
-                      ))}
+                      {courses.map((course, i) => {
+                        const isEnrolled = enrolledCourses.has(course.url);
+                        return (
+                          <motion.div 
+                            key={i}
+                            initial={{ opacity: 0, y: 20 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ delay: i * 0.05 }}
+                          >
+                            <GlassCard className={`h-full flex flex-col group border-[rgba(255,255,255,0.05)] transition-all ${isEnrolled ? 'border-[var(--accent-teal)]' : 'hover:border-[var(--accent-green)]'}`}>
+                              <div className="flex justify-between items-start mb-4">
+                                <span className="text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded bg-[var(--accent-green)]/10 text-[var(--accent-green)]">
+                                  {course.platform}
+                                </span>
+                                <button 
+                                  onClick={(e) => toggleEnroll(course.url, e)}
+                                  className={`p-1.5 rounded-md border transition-all ${isEnrolled ? 'bg-[var(--accent-teal)] border-[var(--accent-teal)] text-[#050a0e]' : 'border-[var(--border-glass)] text-[var(--text-muted)] hover:text-white'}`}
+                                >
+                                  {isEnrolled ? <Icons.Check size={14} /> : <Icons.Plus size={14} />}
+                                </button>
+                              </div>
+                              <h3 className={`text-lg font-bold mb-6 transition-colors line-clamp-2 ${isEnrolled ? 'text-[var(--accent-teal)]' : 'text-[var(--text-primary)] group-hover:text-[var(--accent-green)]'}`}>
+                                {course.title}
+                              </h3>
+                              <GlowButton 
+                                fullWidth 
+                                variant={isEnrolled ? "primary" : "secondary"}
+                                onClick={() => window.open(course.url, '_blank')}
+                                className="mt-auto"
+                              >
+                                {isEnrolled ? "Continue Learning →" : "Start Learning →"}
+                              </GlowButton>
+                            </GlassCard>
+                          </motion.div>
+                        );
+                      })}
                     </div>
                   ) : (
                     <div className="flex flex-col items-center justify-center py-20 text-center">

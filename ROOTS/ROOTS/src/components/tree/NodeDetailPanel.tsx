@@ -83,9 +83,6 @@ export const NodeDetailPanel = ({ node, onClose }: NodeDetailPanelProps) => {
             <GlowButton fullWidth variant="primary">
               Start Learning →
             </GlowButton>
-            <GlowButton fullWidth variant="ghost">
-              Add to My Path
-            </GlowButton>
           </div>
         </motion.div>
       )}
