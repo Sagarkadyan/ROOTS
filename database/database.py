@@ -31,7 +31,6 @@ def init_db():
         ''')
         conn.commit()
 
-# Call init_db on module import
 init_db()
 
 def adder(name, email, password, number):
@@ -101,7 +100,7 @@ def store_otp(identifier, otp):
     try:
         with get_db() as conn:
             cursor = conn.cursor()
-            # Delete old OTPs for this identifier first
+         
             cursor.execute("DELETE FROM otps WHERE identifier = ?", (identifier,))
             cursor.execute(
                 "INSERT INTO otps (identifier, otp) VALUES (?, ?)",
@@ -123,7 +122,7 @@ def verify_otp(identifier, otp):
             )
             row = cursor.fetchone()
             if row and row[0] == otp:
-                # Delete OTP after successful verification
+          
                 cursor.execute("DELETE FROM otps WHERE identifier = ?", (identifier,))
                 conn.commit()
                 return True
